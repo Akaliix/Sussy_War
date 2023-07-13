@@ -6,6 +6,7 @@ using UnityEngine.EventSystems;
 public class VariableJoystick : Joystick
 {
     public float MoveThreshold { get { return moveThreshold; } set { moveThreshold = Mathf.Abs(value); } }
+    [SerializeField] private CanvasGroup _canvasGroup = null;
 
     [SerializeField] private float moveThreshold = 1;
     [SerializeField] private JoystickType joystickType = JoystickType.Fixed;
@@ -15,13 +16,8 @@ public class VariableJoystick : Joystick
     public void SetMode(JoystickType joystickType)
     {
         this.joystickType = joystickType;
-        if(joystickType == JoystickType.Fixed)
-        {
-            background.anchoredPosition = fixedPosition;
-            background.gameObject.SetActive(true);
-        }
-        else
-            background.gameObject.SetActive(false);
+        background.anchoredPosition = fixedPosition;
+        background.gameObject.SetActive(true);
     }
 
     protected override void Start()
@@ -29,23 +25,23 @@ public class VariableJoystick : Joystick
         base.Start();
         fixedPosition = background.anchoredPosition;
         SetMode(joystickType);
+        _canvasGroup.alpha = 0.5f;
     }
 
     public override void OnPointerDown(PointerEventData eventData)
     {
         if(joystickType != JoystickType.Fixed)
         {
-            background.anchoredPosition = ScreenPointToAnchoredPosition(eventData.position);
-            background.gameObject.SetActive(true);
+            //background.anchoredPosition = ScreenPointToAnchoredPosition(eventData.position);
         }
+        _canvasGroup.alpha = 1f;
         base.OnPointerDown(eventData);
     }
 
     public override void OnPointerUp(PointerEventData eventData)
     {
-        if(joystickType != JoystickType.Fixed)
-            background.gameObject.SetActive(false);
-
+        background.anchoredPosition = fixedPosition;
+        _canvasGroup.alpha = 0.5f;
         base.OnPointerUp(eventData);
     }
 

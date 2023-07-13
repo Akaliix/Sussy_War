@@ -30,8 +30,8 @@ public class CharacterMovement : MonoBehaviour
     [SerializeField]
     private VariableJoystick movementJoystick;
 
-    [SerializeField]
-    private VariableJoystick rotationJoystick;
+    //[SerializeField]
+    //private VariableJoystick rotationJoystick;
 
     private Vector2 movementVector2D;
     private Vector3 movementVector;
