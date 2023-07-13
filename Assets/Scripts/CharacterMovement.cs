@@ -35,6 +35,7 @@ public class CharacterMovement : MonoBehaviour
 
     private Vector2 movementVector2D;
     private Vector3 movementVector;
+    private Vector3 lastFramePos;
 
     private Plane plane = new Plane(Vector3.up, new Vector3(0, 0.309f, 0));
 
@@ -51,12 +52,14 @@ public class CharacterMovement : MonoBehaviour
             Debug.LogError("PlayerController bulunamadi!");
             UnityEditor.EditorApplication.isPlaying = false;
         }
+        lastFramePos = transform.position;
     }
 
     private void Update()
     {
         Move();
         Rotate();
+        Animation();
     }
 
     private void Move()
@@ -70,7 +73,9 @@ public class CharacterMovement : MonoBehaviour
             movementVector2D = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
         }
         //Vector2 movementVector2D = new Vector2((Input.GetKey(KeyCode.D) ? 1f :0f) + (Input.GetKey(KeyCode.A) ? -1f : 0f), (Input.GetKey(KeyCode.W) ? 1f : 0f) + (Input.GetKey(KeyCode.S) ? -1f : 0f));
-        if (movementVector2D.x * movementVector2D.x + movementVector2D.y * movementVector2D.y < MovementThreshHold)
+
+        float movementMagnitudeSquared = movementVector2D.x * movementVector2D.x + movementVector2D.y * movementVector2D.y;
+        if (movementMagnitudeSquared < MovementThreshHold)
         {
             movementVector2D = new Vector2();
             movementVector = new Vector3();
@@ -80,7 +85,10 @@ public class CharacterMovement : MonoBehaviour
         }
         else
         {
-            movementVector2D.Normalize();
+            if (movementMagnitudeSquared > 1)
+            {
+                movementVector2D.Normalize();
+            }
             movementVector = new Vector3(movementVector2D.x, 0, movementVector2D.y) * (Speed * Time.deltaTime);
         }
 
@@ -90,9 +98,8 @@ public class CharacterMovement : MonoBehaviour
         }
 
         _characterController.Move(movementVector);
-
-        _playerController._playerAnimator.SetFloat("SpeedX", movementVector2D.x);
-        _playerController._playerAnimator.SetFloat("SpeedY", movementVector2D.y);
+        /*_playerController._playerAnimator.SetFloat("SpeedX", _characterController.velocity.x);
+        _playerController._playerAnimator.SetFloat("SpeedY", _characterController.velocity.z);*/
     }
 
     private void Rotate()
@@ -102,6 +109,7 @@ public class CharacterMovement : MonoBehaviour
         if (GameSettings.singleton.isMobile)
         {
             rotationVector2D = new Vector2(movementJoystick.Horizontal, movementJoystick.Vertical);
+            _playerController._playerModel.rotation = Quaternion.Slerp(_playerController._playerModel.transform.rotation, Quaternion.Euler(new Vector3(0, Mathf.Atan2(rotationVector2D.x, rotationVector2D.y) * 180 / Mathf.PI, 0)), Time.deltaTime * RotationalSpeed);
         }
         else
         {
@@ -110,17 +118,26 @@ public class CharacterMovement : MonoBehaviour
             if (plane.Raycast(ray, out distance))
             {
                 Vector3 worldPosition = ray.GetPoint(distance);
-                Debug.Log(worldPosition);
+                //Debug.Log(worldPosition);
                 Vector3 orientationForwardVector = worldPosition - transform.position;
                 orientationForwardVector.y = 0f;
                 Quaternion tempRot = Quaternion.LookRotation(orientationForwardVector);
                 _playerController._playerModel.rotation = Quaternion.Slerp(_playerController._playerModel.transform.rotation, tempRot, Time.deltaTime * RotationalSpeed);
-
-
-
-                ////_newMovementQuaternion = _playerController._playerModel.transform.rotation;
-                //rotationVector2D = new Vector2();
             }
         }
+    }
+
+    private void Animation()
+    {
+        Vector3 _newSpeed = new Vector3();
+        if (Time.deltaTime != 0f)
+        {
+            _newSpeed = (transform.position - lastFramePos) / Time.deltaTime;
+        }
+        lastFramePos = transform.position;
+        Vector3 _relativeSpeed = _playerController._playerModel.transform.InverseTransformDirection(_newSpeed);
+        _playerController._playerAnimator.SetFloat("SpeedX", _relativeSpeed.x);
+        _playerController._playerAnimator.SetFloat("SpeedY", _relativeSpeed.z);
+        Debug.Log(_relativeSpeed);
     }
 }
