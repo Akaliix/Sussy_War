@@ -7,10 +7,9 @@ public class CharacterMovement : MonoBehaviour
     [SerializeField]
     private float Speed = 10f;
 
-    //[SerializeField]
-    //private float SpeedAcceleration = 3f;
-    //[SerializeField]
-    //private float SpeedDeceleration = 5f;
+
+    [SerializeField]
+    private float NearAttackDistance = 20f;
 
     [SerializeField]
     private float MovementThreshHold = 0.1f;
@@ -32,6 +31,7 @@ public class CharacterMovement : MonoBehaviour
 
     //[SerializeField]
     //private VariableJoystick rotationJoystick;
+    private bool isReloading = false;
 
     private Vector2 movementVector2D;
     private Vector3 movementVector;
@@ -44,19 +44,31 @@ public class CharacterMovement : MonoBehaviour
         if (_characterController == null && !TryGetComponent(out _characterController))
         {
             Debug.LogError("CharacterController bulunamadi!");
-            UnityEditor.EditorApplication.isPlaying = false;
+            //UnityEditor.EditorApplication.isPlaying = false;
         }
 
         if (_playerController == null && !TryGetComponent(out _playerController))
         {
             Debug.LogError("PlayerController bulunamadi!");
-            UnityEditor.EditorApplication.isPlaying = false;
+            //UnityEditor.EditorApplication.isPlaying = false;
         }
         lastFramePos = transform.position;
     }
 
     private void Update()
     {
+        if (!GameSettings.singleton.isGameStarted || GameSettings.singleton.isGamePaused)
+            return;
+
+        if (GameSettings.singleton.isMobile)
+        {
+            movementVector2D = new Vector2(movementJoystick.Horizontal, movementJoystick.Vertical);
+        }
+        else
+        {
+            movementVector2D = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+        }
+
         Move();
         Rotate();
         Animation();
@@ -104,26 +116,73 @@ public class CharacterMovement : MonoBehaviour
 
     private void Rotate()
     {
-        Vector2 rotationVector2D = new Vector2();
+        Vector2 rotationVector2D;
 
         if (GameSettings.singleton.isMobile)
         {
+            if (_playerController.BulletAmount <= 0 && !isReloading)
+            {
+                isReloading = true;
+                StartCoroutine(ReloadWaitFor(2f));
+                InGameAudioManager.singleton.PlayAudio(InGameAudioManager.AudioType.pistolRecoil);
+                _playerController._playerAnimator.SetTrigger("Reload");
+                _playerController._characterAttack.NotAttack();
+            }
+
             rotationVector2D = new Vector2(movementJoystick.Horizontal, movementJoystick.Vertical);
-            _playerController._playerModel.rotation = Quaternion.Slerp(_playerController._playerModel.transform.rotation, Quaternion.Euler(new Vector3(0, Mathf.Atan2(rotationVector2D.x, rotationVector2D.y) * 180 / Mathf.PI, 0)), Time.deltaTime * RotationalSpeed);
+            float movementMagnitudeSquared = rotationVector2D.x * rotationVector2D.x + rotationVector2D.y * rotationVector2D.y;
+            if (movementMagnitudeSquared > MovementThreshHold)
+            {
+                _playerController._playerModel.rotation = Quaternion.Slerp(_playerController._playerModel.transform.rotation, Quaternion.Euler(new Vector3(0, Mathf.Atan2(rotationVector2D.x, rotationVector2D.y) * 180 / Mathf.PI, 0)), Time.deltaTime * RotationalSpeed);
+                _playerController._characterAttack.NotAttack();
+            }
+            else if (_playerController.BulletAmount > 0)
+            {
+                Attack();
+            }
+        }
+        //else
+        //{
+        //    float distance;
+        //    Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        //    if (plane.Raycast(ray, out distance))
+        //    {
+        //        Vector3 worldPosition = ray.GetPoint(distance);
+        //        //Debug.Log(worldPosition);
+        //        Vector3 orientationForwardVector = worldPosition - transform.position;
+        //        orientationForwardVector.y = 0f;
+        //        Quaternion tempRot = Quaternion.LookRotation(orientationForwardVector);
+        //        _playerController._playerModel.rotation = Quaternion.Slerp(_playerController._playerModel.transform.rotation, tempRot, Time.deltaTime * RotationalSpeed);
+        //    }
+        //}
+    }
+
+    private IEnumerator ReloadWaitFor(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        isReloading = false;
+        _playerController.Reload();
+    }
+
+    private void Attack()
+    {
+        (GameObject, float) enemy = EnemySpawner.MostNearEnemy();
+        if (enemy.Item1 != null && enemy.Item2 < NearAttackDistance)
+        {
+            Vector3 orientationForwardVector = enemy.Item1.transform.position - transform.position;
+            orientationForwardVector.y = 0f;
+            Quaternion tempRot = Quaternion.LookRotation(orientationForwardVector);
+            _playerController._playerModel.rotation = Quaternion.Slerp(_playerController._playerModel.transform.rotation, tempRot, Time.deltaTime * RotationalSpeed * 1.4f);
+            float angle = Quaternion.Angle(_playerController._playerModel.transform.rotation, tempRot);
+            if (angle%360 < 5 && _playerController._characterAttack.Attack())
+            {
+                _playerController.UseBullet();
+                _playerController._playerAnimator.SetTrigger("Shoot");
+            }
         }
         else
         {
-            float distance;
-            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            if (plane.Raycast(ray, out distance))
-            {
-                Vector3 worldPosition = ray.GetPoint(distance);
-                //Debug.Log(worldPosition);
-                Vector3 orientationForwardVector = worldPosition - transform.position;
-                orientationForwardVector.y = 0f;
-                Quaternion tempRot = Quaternion.LookRotation(orientationForwardVector);
-                _playerController._playerModel.rotation = Quaternion.Slerp(_playerController._playerModel.transform.rotation, tempRot, Time.deltaTime * RotationalSpeed);
-            }
+            _playerController._characterAttack.NotAttack();
         }
     }
 
@@ -138,6 +197,6 @@ public class CharacterMovement : MonoBehaviour
         Vector3 _relativeSpeed = _playerController._playerModel.transform.InverseTransformDirection(_newSpeed);
         _playerController._playerAnimator.SetFloat("SpeedX", _relativeSpeed.x);
         _playerController._playerAnimator.SetFloat("SpeedY", _relativeSpeed.z);
-        Debug.Log(_relativeSpeed);
+        //Debug.Log(_relativeSpeed);
     }
 }
